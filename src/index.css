@@ -149,6 +149,30 @@ code {
   gap: 0.4rem;
 }
 
+.checkout .drink-menu {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
+.checkout .drink-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.drink-options label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.drink-options select {
+  width: 100%;
+  font: inherit;
+}
+
 .cart-items li,
 .checkout-fields {
   display: flex;
