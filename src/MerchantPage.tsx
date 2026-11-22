@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
+import OrderItems from "./OrderItems";
+import type { Order } from "./order";
 
 const API = import.meta.env.VITE_API_URL as string;
 
-type PendingOrder = {
-  orderId: string;
-  createdAt: string | number;
-  note?: string;
-};
-
 export default function MerchantPage({ accessToken }: { accessToken: string }) {
-  const [orders, setOrders] = useState<PendingOrder[] | null>(null);
+  const [orders, setOrders] = useState<Order[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -30,7 +26,7 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
         if (!response.ok) {
           throw new Error(`读取待处理订单失败（HTTP ${response.status}）`);
         }
-        const { orders }: { orders: PendingOrder[] } = await response.json();
+        const { orders }: { orders: Order[] } = await response.json();
         if (!controller.signal.aborted) setOrders(orders);
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -83,6 +79,7 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
           <thead>
             <tr>
               <th scope="col">下单时间</th>
+                <th scope="col">饮品</th>
               <th scope="col">备注</th>
               <th scope="col">状态</th>
               <th scope="col">操作</th>
@@ -92,6 +89,7 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
             {orders.map((order) => (
               <tr key={order.orderId}>
                 <td>{new Date(Number(order.createdAt) * 1000).toLocaleString("zh-CN")}</td>
+                <td><OrderItems items={order.items} totalAmountCents={order.totalAmountCents} /></td>
                 <td>{order.note || "—"}</td>
                 <td>待制作</td>
                 <td>
