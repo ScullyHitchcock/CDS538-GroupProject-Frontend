@@ -1,10 +1,10 @@
 import { type CartItem } from "./cart";
-import { drinkLineKey, drinkLineLabel, formatPrice, type DrinkLine } from "./order";
+import { productLineKey, productLineLabel, formatPrice, type ProductLine } from "./order";
 
 type CartItemsProps = {
   items: CartItem[];
   locked: boolean;
-  onQuantityChange: (line: DrinkLine, change: 1 | -1) => void;
+  onQuantityChange: (line: ProductLine, change: 1 | -1) => void;
 };
 
 export default function CartItems({ items, locked, onQuantityChange }: CartItemsProps) {
@@ -13,11 +13,15 @@ export default function CartItems({ items, locked, onQuantityChange }: CartItems
   return (
     <ul className="cart-items">
       {items.map((line) => {
-        const label = drinkLineLabel(line);
+        const label = productLineLabel(line);
+        const unavailableToppings = line.unavailableToppings.map((topping) => topping.name).join("、");
 
         return (
-          <li key={drinkLineKey(line)}>
-            <span>{label}{line.soldOut && "（已售罄）"}</span>
+          <li key={productLineKey(line)}>
+            <span>
+              {label}
+              {line.soldOut && (unavailableToppings ? `（${unavailableToppings}已下架）` : "（已售罄）")}
+            </span>
             <div className="quantity">
               <button
                 type="button"

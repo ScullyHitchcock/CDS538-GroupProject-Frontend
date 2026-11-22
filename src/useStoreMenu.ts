@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { type MenuDrink } from "./order";
+import { type MenuDrink, type StoreProduct } from "./order";
 import { requestOrdersApi } from "./ordersApi";
 
 export default function useStoreMenu(storeId: string, accessToken?: string) {
-  const [result, setResult] = useState<{ storeId: string; menu: MenuDrink[]; error: string } | null>(null);
+  const [result, setResult] = useState<{ storeId: string; menu: MenuDrink[]; toppings: StoreProduct[]; error: string } | null>(null);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -18,11 +18,11 @@ export default function useStoreMenu(storeId: string, accessToken?: string) {
         });
         if (!response.ok) throw new Error(`读取菜单失败（HTTP ${response.status}）`);
 
-        const { menu }: { menu: MenuDrink[] } = await response.json();
-        if (!controller.signal.aborted) setResult({ storeId, menu, error: "" });
+        const { menu, toppings = [] }: { menu: MenuDrink[]; toppings?: StoreProduct[] } = await response.json();
+        if (!controller.signal.aborted) setResult({ storeId, menu, toppings, error: "" });
       } catch (error) {
         if (!controller.signal.aborted) {
-          setResult({ storeId, menu: [], error: error instanceof Error ? error.message : String(error) });
+          setResult({ storeId, menu: [], toppings: [], error: error instanceof Error ? error.message : String(error) });
         }
       }
     }

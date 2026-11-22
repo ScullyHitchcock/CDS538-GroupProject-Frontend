@@ -3,12 +3,12 @@ import CartItems from "./CartItems";
 import { cartTotalCents, changeCartQuantity, getCartItems, productQuantity, type CartLine } from "./cart";
 import DrinkMenuItem from "./DrinkMenuItem";
 import OrderItems from "./OrderItems";
-import { formatPrice, orderStatusLabel, type Drink, type DrinkLine, type Order } from "./order";
+import { formatPrice, orderStatusLabel, type Product, type ProductLine, type Order } from "./order";
 import { requestOrdersApi } from "./ordersApi";
 import useStoreMenu from "./useStoreMenu";
 
 type Store = { storeId: string; name: string };
-type Catalog = { stores: Store[]; menu: Drink[]; maxItemQuantity: number };
+type Catalog = { stores: Store[]; menu: Product[]; toppings?: Product[]; maxItemQuantity: number };
 
 type CheckoutRequest = {
   checkoutId: string;
@@ -60,7 +60,7 @@ export default function CustomerCheckout({
     async function loadCatalog(token: string) {
       setStoreError("");
       try {
-        const response = await requestOrdersApi("/stores", token, { signal: controller.signal });
+        const response = await requestOrdersApi("/stores", token, { signal: controller.signal, cache: "no-store" });
         if (!response.ok) {
           throw new Error(`读取门店失败（HTTP ${response.status}）`);
         }
@@ -79,12 +79,14 @@ export default function CustomerCheckout({
   const selectedStore = catalog?.stores.find((store) => store.storeId === storeId);
   const pendingStore = catalog?.stores.find((store) => store.storeId === pendingStoreId);
   const { result: storeMenu, reloadMenu } = useStoreMenu(storeId, accessToken);
-  const availableMenu = storeMenu && !storeMenu.error ? storeMenu.menu : null;
+  const menu = storeMenu && !storeMenu.error ? storeMenu : null;
+  const products = [...(catalog?.menu ?? []), ...(catalog?.toppings ?? [])];
+  const availableProducts = menu && [...menu.menu, ...menu.toppings.filter((topping) => !topping.soldOut)];
   const maxQuantity = catalog?.maxItemQuantity ?? 0;
-  const cartItems = getCartItems(cart, catalog?.menu ?? [], availableMenu, maxQuantity);
+  const cartItems = getCartItems(cart, products, availableProducts, maxQuantity);
   const total = cartTotalCents(cartItems);
   const checkoutLocked = submitting || pendingCheckout !== null;
-  const canSubmit = selectedStore && availableMenu && cartItems.length > 0 &&
+  const canSubmit = selectedStore && menu && cartItems.length > 0 &&
     !cartItems.some((item) => item.soldOut);
 
   function selectStore(nextStoreId: string) {
@@ -104,7 +106,7 @@ export default function CustomerCheckout({
     selectStore(nextStoreId);
   }
 
-  function changeQuantity(line: DrinkLine, change: 1 | -1) {
+  function changeQuantity(line: ProductLine, change: 1 | -1) {
     setCheckoutError("");
     setCart((current) => changeCartQuantity(current, line, change, maxQuantity));
   }
@@ -126,7 +128,7 @@ export default function CustomerCheckout({
       storeId,
       note,
       checkoutId: crypto.randomUUID(),
-      items: cartItems.map(({ productId, options, quantity }) => ({ productId, options, quantity })),
+      items: cartItems.map(({ productId, options, toppingIds, quantity }) => ({ productId, options, toppingIds, quantity })),
     };
     if (!pendingCheckout) {
       try {
@@ -156,7 +158,7 @@ export default function CustomerCheckout({
           if (result.code === "ITEMS_SOLD_OUT") {
             const names = result.items.map((item: { name: string }) => item.name).join("、");
             clearPendingCheckout();
-            setCheckoutError(`${names}已售罄，请从购物车移除后重新提交。`);
+            setCheckoutError(`${names}已售罄或下架，请调整购物车后重新提交。`);
             reloadMenu();
           } else if (result.code === "CHECKOUT_ID_CONFLICT") {
             clearPendingCheckout();
@@ -164,7 +166,7 @@ export default function CustomerCheckout({
           }
         } else if (response.status === 400) {
           clearPendingCheckout();
-          setCheckoutError("服务器拒绝了这笔订单，请检查门店、饮品和规格后再提交。");
+          setCheckoutError("服务器拒绝了这笔订单，请检查门店、商品和规格后再提交。");
         } else if (response.status === 401 || response.status === 403) {
           if (!pendingCheckout) clearPendingCheckout();
           setCheckoutError("请重新登录后继续。");
@@ -225,19 +227,47 @@ export default function CustomerCheckout({
               <button type="button" onClick={reloadMenu}>重新读取菜单</button>
             </div>
           )}
-          {availableMenu?.length === 0 && <p>暂无可售饮品</p>}
-          {availableMenu && availableMenu.length > 0 && (
+          {menu && <button type="button" onClick={reloadMenu} disabled={checkoutLocked}>刷新菜单</button>}
+          {menu?.menu.length === 0 && <p>暂无可售饮品</p>}
+          {menu && menu.menu.length > 0 && (
             <ul className="drink-menu">
-              {availableMenu.map((drink) => (
+              {menu.menu.map((drink) => (
                 <DrinkMenuItem
                   key={drink.productId}
                   drink={drink}
+                  toppings={menu.toppings}
                   locked={checkoutLocked}
                   atQuantityLimit={productQuantity(cart, drink.productId) >= maxQuantity}
-                  onAdd={(options) => changeQuantity({ productId: drink.productId, options }, 1)}
+                  onAdd={(options, toppingIds) => changeQuantity({
+                    productId: drink.productId,
+                    options,
+                    toppingIds: toppingIds.length ? toppingIds : undefined,
+                  }, 1)}
                 />
               ))}
             </ul>
+          )}
+
+          {menu && menu.toppings.length > 0 && (
+            <>
+              <h4>单点小料</h4>
+              <ul className="drink-menu">
+                {menu.toppings.map((topping) => (
+                  <li key={topping.productId}>
+                    <strong>{topping.name}</strong>
+                    <span>{formatPrice(topping.priceCents)}/份</span>
+                    <button
+                      type="button"
+                      aria-label={`单点${topping.name}`}
+                      onClick={() => changeQuantity({ productId: topping.productId }, 1)}
+                      disabled={checkoutLocked || topping.soldOut || productQuantity(cart, topping.productId) >= maxQuantity}
+                    >
+                      {topping.soldOut ? "已下架" : "加入购物车"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
 
           <h4>购物车</h4>

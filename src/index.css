@@ -173,6 +173,21 @@ code {
   font: inherit;
 }
 
+.checkout .topping-options {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.topping-options label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
 .cart-items li,
 .checkout-fields {
   display: flex;

@@ -1,4 +1,4 @@
-export type Drink = {
+export type Product = {
   productId: string;
   name: string;
   priceCents: number;
@@ -11,21 +11,35 @@ export type DrinkOptions = {
 
 type OptionChoices = { choices: string[]; default: string };
 
-export type MenuDrink = Drink & {
+export type MenuDrink = Product & {
   options: Record<keyof DrinkOptions, OptionChoices>;
 };
 
-export type DrinkLine = {
+export type StoreProduct = Product & { soldOut: boolean };
+export type ToppingLabel = Pick<Product, "productId" | "name">;
+
+export type ProductLine = {
   productId: string;
   options?: DrinkOptions;
+  toppingIds?: string[];
 };
 
-export function drinkLineKey({ productId, options }: DrinkLine) {
-  return JSON.stringify([productId, options?.ice, options?.sugar]);
+export function productLineKey({ productId, options, toppingIds }: ProductLine) {
+  return JSON.stringify([productId, options?.ice, options?.sugar, [...(toppingIds ?? [])].sort()]);
 }
 
-export function drinkLineLabel({ name, options }: { name: string; options?: DrinkOptions }) {
-  return options ? `${name}（${options.ice}、${options.sugar}）` : name;
+export function productLineLabel({
+  name,
+  options,
+  toppings = [],
+}: {
+  name: string;
+  options?: DrinkOptions;
+  toppings?: ToppingLabel[];
+}) {
+  const details = options ? [options.ice, options.sugar] : [];
+  details.push(...toppings.map((topping) => `加${topping.name}`));
+  return details.length ? `${name}（${details.join("、")}）` : name;
 }
 
 export type Order = {
@@ -33,10 +47,12 @@ export type Order = {
   createdAt: string | number;
   note?: string;
   status?: string;
-  items?: (DrinkLine & {
+  items?: (Omit<ProductLine, "toppingIds"> & {
     name: string;
     quantity: string | number;
     unitPriceCents: string | number;
+    unit?: "portion";
+    toppings?: (ToppingLabel & { unitPriceCents: string | number })[];
   })[];
   totalAmountCents?: string | number;
 };
