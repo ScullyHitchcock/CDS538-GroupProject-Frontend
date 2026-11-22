@@ -1,19 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+import CartItems from "./CartItems";
+import { cartTotalCents, changeCartQuantity, getCartItems, productQuantity, type CartLine } from "./cart";
 import DrinkMenuItem from "./DrinkMenuItem";
 import OrderItems from "./OrderItems";
-import { drinkLineKey, drinkLineLabel, formatPrice, orderStatusLabel, type Drink, type DrinkLine, type Order } from "./order";
+import { formatPrice, orderStatusLabel, type Drink, type DrinkLine, type Order } from "./order";
 import { requestOrdersApi } from "./ordersApi";
 import useStoreMenu from "./useStoreMenu";
 
 type Store = { storeId: string; name: string };
 type Catalog = { stores: Store[]; menu: Drink[]; maxItemQuantity: number };
-type CheckoutItem = DrinkLine & { quantity: number };
 
 type CheckoutRequest = {
   checkoutId: string;
   storeId: string;
   note: string;
-  items: CheckoutItem[];
+  items: CartLine[];
 };
 
 type CheckoutProps = {
@@ -33,10 +34,6 @@ function readPendingCheckout(storageKey: string): CheckoutRequest | null {
   }
 }
 
-function productQuantity(items: CheckoutItem[], productId: string) {
-  return items.reduce((sum, item) => item.productId === productId ? sum + item.quantity : sum, 0);
-}
-
 export default function CustomerCheckout({
   customerId,
   accessToken,
@@ -50,7 +47,7 @@ export default function CustomerCheckout({
   const [storeError, setStoreError] = useState("");
   const [storeId, setStoreId] = useState(pendingCheckout?.storeId ?? "");
   const [pendingStoreId, setPendingStoreId] = useState("");
-  const [cart, setCart] = useState<CheckoutItem[]>(pendingCheckout?.items ?? []);
+  const [cart, setCart] = useState<CartLine[]>(pendingCheckout?.items ?? []);
   const [note, setNote] = useState(pendingCheckout?.note ?? "");
   const submissionInFlight = useRef(false);
   const [checkoutError, setCheckoutError] = useState("");
@@ -84,19 +81,11 @@ export default function CustomerCheckout({
   const { result: storeMenu, reloadMenu } = useStoreMenu(storeId, accessToken);
   const availableMenu = storeMenu && !storeMenu.error ? storeMenu.menu : null;
   const maxQuantity = catalog?.maxItemQuantity ?? 0;
-  const cartItems = cart.flatMap((line) => {
-    const drink = catalog?.menu.find((drink) => drink.productId === line.productId);
-    return drink ? [{ ...line, name: drink.name, priceCents: drink.priceCents }] : [];
-  });
-  const total = cartItems.reduce((sum, drink) => sum + drink.priceCents * drink.quantity, 0);
+  const cartItems = getCartItems(cart, catalog?.menu ?? [], availableMenu, maxQuantity);
+  const total = cartTotalCents(cartItems);
   const checkoutLocked = submitting || pendingCheckout !== null;
-
-  function isSoldOut(productId: string) {
-    return availableMenu !== null && !availableMenu.some((drink) => drink.productId === productId);
-  }
-
   const canSubmit = selectedStore && availableMenu && cartItems.length > 0 &&
-    !cartItems.some((drink) => isSoldOut(drink.productId));
+    !cartItems.some((item) => item.soldOut);
 
   function selectStore(nextStoreId: string) {
     reloadMenu();
@@ -117,17 +106,7 @@ export default function CustomerCheckout({
 
   function changeQuantity(line: DrinkLine, change: 1 | -1) {
     setCheckoutError("");
-    setCart((current) => {
-      if (change === 1 && productQuantity(current, line.productId) >= maxQuantity) return current;
-
-      const key = drinkLineKey(line);
-      const existing = current.find((item) => drinkLineKey(item) === key);
-      if (!existing) return change === 1 ? [...current, { ...line, quantity: 1 }] : current;
-
-      const quantity = existing.quantity + change;
-      if (quantity === 0) return current.filter((item) => item !== existing);
-      return current.map((item) => item === existing ? { ...item, quantity } : item);
-    });
+    setCart((current) => changeCartQuantity(current, line, change, maxQuantity));
   }
 
   function clearPendingCheckout() {
@@ -266,36 +245,7 @@ export default function CustomerCheckout({
             event.preventDefault();
             void submitOrder();
           }}>
-            {cartItems.length === 0 && <p>购物车是空的</p>}
-            <ul className="cart-items">
-              {cartItems.map((line) => {
-                const label = drinkLineLabel(line);
-                const soldOut = isSoldOut(line.productId);
-
-                return (
-                  <li key={drinkLineKey(line)}>
-                    <span>{label}{soldOut && "（已售罄）"}</span>
-                    <div className="quantity">
-                      <button
-                        type="button"
-                        aria-label={`减少${label}数量`}
-                        onClick={() => changeQuantity(line, -1)}
-                        disabled={checkoutLocked}
-                      >−</button>
-                      <span aria-label={`${label}数量`}>{line.quantity}</span>
-                      <button
-                        type="button"
-                        aria-label={`增加${label}数量`}
-                        onClick={() => changeQuantity(line, 1)}
-                        disabled={checkoutLocked || !availableMenu || soldOut ||
-                          productQuantity(cart, line.productId) >= maxQuantity}
-                      >+</button>
-                    </div>
-                    <span>{formatPrice(line.priceCents * line.quantity)}</span>
-                  </li>
-                );
-              })}
-            </ul>
+            <CartItems items={cartItems} locked={checkoutLocked} onQuantityChange={changeQuantity} />
             <div className="checkout-fields">
               <label>
                 订单备注（可选）
