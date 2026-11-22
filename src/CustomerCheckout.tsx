@@ -179,6 +179,9 @@ export default function CustomerCheckout({
             clearPendingCheckout();
             setCheckoutError(`${names}已售罄，请从购物车移除后重新提交。`);
             reloadMenu();
+          } else if (result.code === "CHECKOUT_ID_CONFLICT") {
+            clearPendingCheckout();
+            setCheckoutError("这次提交的内容与已保存的订单不同。请先查看「我的订单」，再决定是否重新下单。");
           }
         } else if (response.status === 400) {
           clearPendingCheckout();
