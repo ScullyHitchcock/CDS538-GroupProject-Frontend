@@ -1,0 +1,109 @@
+import { useEffect, useState } from "react";
+
+const API = import.meta.env.VITE_API_URL as string;
+
+type PendingOrder = {
+  orderId: string;
+  createdAt: string | number;
+  note?: string;
+};
+
+export default function MerchantPage({ accessToken }: { accessToken: string }) {
+  const [orders, setOrders] = useState<PendingOrder[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  const [completingOrderId, setCompletingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const controller = new AbortController();
+    async function loadOrders() {
+      setLoading(true);
+      setError("");
+      try {
+        const response = await fetch(`${API}/merchant/orders`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`读取待处理订单失败（HTTP ${response.status}）`);
+        }
+        const { orders }: { orders: PendingOrder[] } = await response.json();
+        if (!controller.signal.aborted) setOrders(orders);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setError(error instanceof Error ? error.message : String(error));
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    void loadOrders();
+    return () => controller.abort();
+  }, [accessToken, refresh]);
+
+  async function markReady(orderId: string) {
+    setCompletingOrderId(orderId);
+    setError("");
+    try {
+      const response = await fetch(
+        `${API}/merchant/orders/${encodeURIComponent(orderId)}/ready`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`标记制作完成失败（HTTP ${response.status}）`);
+      }
+      setOrders((current) => current?.filter((order) => order.orderId !== orderId) ?? null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setCompletingOrderId(null);
+    }
+  }
+
+  if (!accessToken) return <p role="alert">请重新登录</p>;
+
+  const busy = loading || completingOrderId !== null;
+
+  return (
+    <section>
+      <h3>待处理订单</h3>
+      <button onClick={() => setRefresh((count) => count + 1)} disabled={busy}>
+        {loading ? "正在读取…" : "刷新待处理订单"}
+      </button>
+      {error && <p role="alert">{error}</p>}
+      {!loading && !error && orders?.length === 0 && <p>暂无待处理订单</p>}
+      {orders && orders.length > 0 && (
+        <table style={{ margin: "12px auto" }}>
+          <thead>
+            <tr>
+              <th scope="col">下单时间</th>
+              <th scope="col">备注</th>
+              <th scope="col">状态</th>
+              <th scope="col">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr key={order.orderId}>
+                <td>{new Date(Number(order.createdAt) * 1000).toLocaleString("zh-CN")}</td>
+                <td>{order.note || "—"}</td>
+                <td>待制作</td>
+                <td>
+                  <button onClick={() => void markReady(order.orderId)} disabled={busy}>
+                    {completingOrderId === order.orderId ? "正在提交…" : "制作完成"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
