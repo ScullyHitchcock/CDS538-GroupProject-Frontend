@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import OrderItems from "./OrderItems";
-import type { Order } from "./order";
-
-const API = import.meta.env.VITE_API_URL as string;
+import { formatOrderTime, type Order } from "./order";
+import { requestOrdersApi } from "./ordersApi";
 
 export default function MerchantPage({ accessToken }: { accessToken: string }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -19,10 +18,7 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
       setLoading(true);
       setError("");
       try {
-        const response = await fetch(`${API}/merchant/orders`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          signal: controller.signal,
-        });
+        const response = await requestOrdersApi("/merchant/orders", accessToken, { signal: controller.signal });
         if (!response.ok) {
           throw new Error(`读取待处理订单失败（HTTP ${response.status}）`);
         }
@@ -44,13 +40,9 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
     setCompletingOrderId(orderId);
     setError("");
     try {
-      const response = await fetch(
-        `${API}/merchant/orders/${encodeURIComponent(orderId)}/ready`,
-        {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        },
-      );
+      const response = await requestOrdersApi(`/merchant/orders/${encodeURIComponent(orderId)}/ready`, accessToken, {
+        method: "PATCH",
+      });
       if (!response.ok) {
         throw new Error(`标记制作完成失败（HTTP ${response.status}）`);
       }
@@ -79,7 +71,7 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
           <thead>
             <tr>
               <th scope="col">下单时间</th>
-                <th scope="col">饮品</th>
+              <th scope="col">饮品</th>
               <th scope="col">备注</th>
               <th scope="col">状态</th>
               <th scope="col">操作</th>
@@ -88,7 +80,7 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
           <tbody>
             {orders.map((order) => (
               <tr key={order.orderId}>
-                <td>{new Date(Number(order.createdAt) * 1000).toLocaleString("zh-CN")}</td>
+                <td>{formatOrderTime(order.createdAt)}</td>
                 <td><OrderItems items={order.items} totalAmountCents={order.totalAmountCents} /></td>
                 <td>{order.note || "—"}</td>
                 <td>待制作</td>
