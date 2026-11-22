@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import CartItems from "./CartItems";
 import { cartTotalCents, changeCartQuantity, getCartItems, productQuantity, type CartLine } from "./cart";
-import DrinkMenuItem from "./DrinkMenuItem";
+import CustomerMenu from "./CustomerMenu";
 import OrderItems from "./OrderItems";
 import { formatPrice, orderStatusLabel, type Product, type ProductLine, type Order } from "./order";
 import { requestOrdersApi } from "./ordersApi";
@@ -189,127 +189,126 @@ export default function CustomerCheckout({
   }
 
   return (
-    <section className="checkout" aria-labelledby="checkout-heading">
-      <h3 id="checkout-heading">顾客下单</h3>
-      <fieldset disabled={checkoutLocked}>
-        <legend>选择门店</legend>
-        {storeError && <p role="alert">{storeError}</p>}
-        {!catalog && !storeError && <p>正在加载门店…</p>}
-        {catalog?.stores.length === 0 && <p>暂无可选门店</p>}
-        {catalog?.stores.map((store) => (
-          <label className="store-option" key={store.storeId}>
-            <input
-              type="radio"
-              name="store"
-              value={store.storeId}
-              checked={storeId === store.storeId}
-              onChange={() => requestStoreChange(store.storeId)}
-            />
-            {store.name}
-          </label>
-        ))}
-      </fieldset>
-      {pendingStore && (
-        <div className="store-switch" role="group" aria-label="确认切换门店">
-          <p>切换到 {pendingStore.name} 会清空购物车。</p>
-          <button type="button" onClick={() => setPendingStoreId("")}>保留当前门店</button>
-          <button type="button" onClick={() => selectStore(pendingStore.storeId)}>确认切换</button>
-        </div>
-      )}
+    <section className="checkout" id="customer-menu" tabIndex={-1} aria-labelledby="checkout-heading">
+      <header className="ordering-intro">
+        <h1 id="checkout-heading">顾客下单</h1>
+      </header>
 
-      {selectedStore && (
-        <>
-          <h4>饮品菜单</h4>
-          {!storeMenu && <p role="status">正在读取饮品菜单…</p>}
-          {storeMenu?.error && (
-            <div>
-              <p role="alert">{storeMenu.error}</p>
-              <button type="button" onClick={reloadMenu}>重新读取菜单</button>
-            </div>
-          )}
-          {menu && <button type="button" onClick={reloadMenu} disabled={checkoutLocked}>刷新菜单</button>}
-          {menu?.menu.length === 0 && <p>暂无可售饮品</p>}
-          {menu && menu.menu.length > 0 && (
-            <ul className="drink-menu">
-              {menu.menu.map((drink) => (
-                <DrinkMenuItem
-                  key={drink.productId}
-                  drink={drink}
-                  toppings={menu.toppings}
-                  locked={checkoutLocked}
-                  atQuantityLimit={productQuantity(cart, drink.productId) >= maxQuantity}
-                  onAdd={(options, toppingIds) => changeQuantity({
-                    productId: drink.productId,
-                    options,
-                    toppingIds: toppingIds.length ? toppingIds : undefined,
-                  }, 1)}
-                />
-              ))}
-            </ul>
-          )}
-
-          {menu && menu.toppings.length > 0 && (
-            <>
-              <h4>单点小料</h4>
-              <ul className="drink-menu">
-                {menu.toppings.map((topping) => (
-                  <li key={topping.productId}>
-                    <strong>{topping.name}</strong>
-                    <span>{formatPrice(topping.priceCents)}/份</span>
-                    <button
-                      type="button"
-                      aria-label={`单点${topping.name}`}
-                      onClick={() => changeQuantity({ productId: topping.productId }, 1)}
-                      disabled={checkoutLocked || topping.soldOut || productQuantity(cart, topping.productId) >= maxQuantity}
-                    >
-                      {topping.soldOut ? "已下架" : "加入购物车"}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          <h4>购物车</h4>
-          <form onSubmit={(event) => {
-            event.preventDefault();
-            void submitOrder();
-          }}>
-            <CartItems items={cartItems} locked={checkoutLocked} onQuantityChange={changeQuantity} />
-            <div className="checkout-fields">
-              <label>
-                订单备注（可选）
+      <div className="store-panel">
+        <fieldset disabled={checkoutLocked}>
+          <legend>选择门店</legend>
+          {storeError && <p role="alert" className="checkout-alert">{storeError}</p>}
+          {!catalog && !storeError && <p role="status">正在加载门店…</p>}
+          {catalog?.stores.length === 0 && <p>暂无可选门店</p>}
+          <div className="store-options">
+            {catalog?.stores.map((store) => (
+              <label className="store-option" key={store.storeId}>
                 <input
-                  value={note}
-                  disabled={checkoutLocked}
-                  onChange={(event) => {
-                    setNote(event.target.value);
-                    setCheckoutError("");
-                  }}
+                  type="radio"
+                  name="store"
+                  value={store.storeId}
+                  checked={storeId === store.storeId}
+                  onChange={() => requestStoreChange(store.storeId)}
                 />
+                {store.name}
               </label>
-              <strong>合计 {formatPrice(total)}</strong>
-              <button type="submit" disabled={!canSubmit || checkoutLocked}>
-                {submitting ? "正在提交…" : "提交订单"}
+            ))}
+          </div>
+        </fieldset>
+        {pendingStore && (
+          <div className="store-switch" role="group" aria-label="确认切换门店">
+            <p>切换到 {pendingStore.name} 会清空购物车。</p>
+            <div>
+              <button className="menu-button menu-button--outline" type="button" onClick={() => setPendingStoreId("")}>
+                保留当前门店
+              </button>
+              <button className="menu-button" type="button" onClick={() => selectStore(pendingStore.storeId)}>
+                确认切换
               </button>
             </div>
-          </form>
-        </>
-      )}
-      {submitting && !selectedStore && <p role="status">正在确认订单…</p>}
-      {pendingCheckout && !submitting && (
-        <div className="order-confirmation">
-          <p role="status">这笔订单可能已提交。请先重试确认，购物车暂时无法修改。</p>
-          <button type="button" onClick={() => void submitOrder()}>重试原订单</button>
+          </div>
+        )}
+      </div>
+
+      <div className="ordering-grid">
+        <div className="ordering-menu">
+          <div className="menu-section-heading">
+            <h2>饮品菜单</h2>
+            {menu && (
+              <button className="menu-button menu-button--outline" type="button" onClick={reloadMenu} disabled={checkoutLocked}>
+                刷新菜单
+              </button>
+            )}
+          </div>
+          {!selectedStore && <p className="menu-message">选择门店后查看该店菜单。</p>}
+          {selectedStore && !storeMenu && <p className="menu-message" role="status">正在读取饮品菜单…</p>}
+          {selectedStore && storeMenu?.error && (
+            <div className="menu-message">
+              <p role="alert" className="checkout-alert">{storeMenu.error}</p>
+              <button className="menu-button menu-button--outline" type="button" onClick={reloadMenu}>
+                重新读取菜单
+              </button>
+            </div>
+          )}
+          {selectedStore && menu && (
+            <CustomerMenu
+              drinks={menu.menu}
+              toppings={menu.toppings}
+              locked={checkoutLocked}
+              atQuantityLimit={(productId) => productQuantity(cart, productId) >= maxQuantity}
+              onAdd={(line) => changeQuantity(line, 1)}
+            />
+          )}
         </div>
-      )}
-      {checkoutError && <p role="alert">{checkoutError}</p>}
-      {submittedOrder && (
-        <div className="order-confirmation" role="status">
-          <p>订单已提交 · {orderStatusLabel(submittedOrder.status, "处理中")}</p>
-          <OrderItems items={submittedOrder.items} totalAmountCents={submittedOrder.totalAmountCents} />
-        </div>
-      )}
+
+        <aside className="checkout-cart" id="customer-cart" tabIndex={-1} aria-labelledby="cart-heading">
+          <h2 id="cart-heading">购物车</h2>
+
+          {submitting && !selectedStore && <p role="status">正在确认订单…</p>}
+          {pendingCheckout && !submitting && (
+            <div className="order-confirmation">
+              <p role="status">这笔订单可能已提交。请先重试确认，购物车暂时无法修改。</p>
+              <button className="menu-button" type="button" onClick={() => void submitOrder()}>重试原订单</button>
+            </div>
+          )}
+          {checkoutError && <p role="alert" className="checkout-alert">{checkoutError}</p>}
+
+          {selectedStore ? (
+            <form onSubmit={(event) => {
+              event.preventDefault();
+              void submitOrder();
+            }}>
+              <CartItems items={cartItems} locked={checkoutLocked} onQuantityChange={changeQuantity} />
+              <div className="checkout-fields">
+                <label>
+                  订单备注（可选）
+                  <input
+                    value={note}
+                    disabled={checkoutLocked}
+                    onChange={(event) => {
+                      setNote(event.target.value);
+                      setCheckoutError("");
+                    }}
+                  />
+                </label>
+                <strong className="cart-total">合计 {formatPrice(total)}</strong>
+                <button className="menu-button" type="submit" disabled={!canSubmit || checkoutLocked}>
+                  {submitting ? "正在提交…" : "提交订单"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <p className="cart-empty">选择门店后即可添加商品。</p>
+          )}
+
+          {submittedOrder && (
+            <div className="order-confirmation" role="status">
+              <p>订单已提交 · {orderStatusLabel(submittedOrder.status, "处理中")}</p>
+              <OrderItems items={submittedOrder.items} totalAmountCents={submittedOrder.totalAmountCents} />
+            </div>
+          )}
+        </aside>
+      </div>
     </section>
   );
 }

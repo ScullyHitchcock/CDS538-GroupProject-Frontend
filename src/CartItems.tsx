@@ -8,7 +8,7 @@ type CartItemsProps = {
 };
 
 export default function CartItems({ items, locked, onQuantityChange }: CartItemsProps) {
-  if (items.length === 0) return <p>购物车是空的</p>;
+  if (items.length === 0) return <p className="cart-empty">购物车是空的</p>;
 
   return (
     <ul className="cart-items">
@@ -18,7 +18,7 @@ export default function CartItems({ items, locked, onQuantityChange }: CartItems
 
         return (
           <li key={productLineKey(line)}>
-            <span>
+            <span className="cart-item-name">
               {label}
               {line.soldOut && (unavailableToppings ? `（${unavailableToppings}已下架）` : "（已售罄）")}
             </span>
@@ -37,7 +37,7 @@ export default function CartItems({ items, locked, onQuantityChange }: CartItems
                 disabled={locked || !line.canIncrease}
               >+</button>
             </div>
-            <span>{formatPrice(line.priceCents * line.quantity)}</span>
+            <span className="cart-item-price">{formatPrice(line.priceCents * line.quantity)}</span>
           </li>
         );
       })}

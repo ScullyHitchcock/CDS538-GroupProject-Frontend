@@ -40,11 +40,21 @@ export default function App() {
     );
   }
 
-  const profile = auth.user!.profile;
+  const { profile, access_token: accessToken } = auth.user!;
   const username = String(profile["cognito:username"] ?? profile.sub);
   const groups = profile["cognito:groups"];
   const isCustomer = Array.isArray(groups) && groups.includes("customers");
   const isMerchant = Array.isArray(groups) && groups.includes("merchants");
+
+  const merchantPage = isMerchant && <MerchantPage key={profile.sub} accessToken={accessToken} />;
+  if (isCustomer) {
+    return (
+      <>
+        <CustomerPage key={profile.sub} customerId={profile.sub} accessToken={accessToken} username={username} onLogout={logout} />
+        {merchantPage}
+      </>
+    );
+  }
 
   return (
     <div style={{ padding: 24 }}>
@@ -54,8 +64,7 @@ export default function App() {
       <button onClick={logout}>退出登录</button>
       <hr />
 
-      {isCustomer && <CustomerPage key={profile.sub} customerId={profile.sub} accessToken={auth.user!.access_token} />}
-      {isMerchant && <MerchantPage key={profile.sub} accessToken={auth.user!.access_token} />}
+      {merchantPage}
     </div>
   );
 }

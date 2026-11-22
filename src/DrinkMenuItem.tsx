@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ProductCard from "./ProductCard";
 import { formatPrice, type DrinkOptions, type MenuDrink, type StoreProduct } from "./order";
 
 const optionFields = [["ice", "冰度"], ["sugar", "糖度"]] as const;
@@ -27,9 +28,7 @@ export default function DrinkMenuItem({ drink, toppings, locked, atQuantityLimit
   }
 
   return (
-    <li>
-      <strong>{drink.name}</strong>
-      <span>{formatPrice(priceCents)}</span>
+    <ProductCard product={drink} priceCents={priceCents}>
       <fieldset className="drink-options" aria-label={`${drink.name}规格`} disabled={locked}>
         {optionFields.map(([option, label]) => (
           <label key={option}>
@@ -58,12 +57,14 @@ export default function DrinkMenuItem({ drink, toppings, locked, atQuantityLimit
                 disabled={topping.soldOut}
                 onChange={(event) => toggleTopping(topping.productId, event.target.checked)}
               />
-              {topping.name} {topping.soldOut ? "（已下架）" : `+${formatPrice(topping.priceCents)}`}
+              <span>{topping.name}</span>
+              <small>{topping.soldOut ? "（已下架）" : `+${formatPrice(topping.priceCents)}`}</small>
             </label>
           ))}
         </fieldset>
       )}
       <button
+        className="menu-button"
         type="button"
         aria-label={`加入购物车：${drink.name}`}
         onClick={() => onAdd(options, selectedToppings.map((topping) => topping.productId))}
@@ -71,6 +72,6 @@ export default function DrinkMenuItem({ drink, toppings, locked, atQuantityLimit
       >
         加入购物车
       </button>
-    </li>
+    </ProductCard>
   );
 }
