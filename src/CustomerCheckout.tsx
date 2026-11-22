@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import OrderItems from "./OrderItems";
 import { formatPrice, orderStatusLabel, type Drink, type Order } from "./order";
 import { requestOrdersApi } from "./ordersApi";
+import useStoreMenu from "./useStoreMenu";
 
 type Store = { storeId: string; name: string };
 type Catalog = { stores: Store[]; menu: Drink[]; maxItemQuantity: number };
@@ -75,15 +76,24 @@ export default function CustomerCheckout({
 
   const selectedStore = catalog?.stores.find((store) => store.storeId === storeId);
   const pendingStore = catalog?.stores.find((store) => store.storeId === pendingStoreId);
-  const menu = catalog?.menu ?? [];
+  const { result: storeMenu, reloadMenu } = useStoreMenu(storeId, accessToken);
+  const availableMenu = storeMenu && !storeMenu.error ? storeMenu.menu : null;
   const maxQuantity = catalog?.maxItemQuantity ?? 0;
-  const cartItems = menu
+  const cartItems = (catalog?.menu ?? [])
     .map((drink) => ({ ...drink, quantity: cart[drink.productId] ?? 0 }))
     .filter((drink) => drink.quantity > 0);
   const total = cartItems.reduce((sum, drink) => sum + drink.priceCents * drink.quantity, 0);
   const checkoutLocked = submitting || pendingCheckout !== null;
 
+  function isSoldOut(productId: string) {
+    return availableMenu !== null && !availableMenu.some((drink) => drink.productId === productId);
+  }
+
+  const canSubmit = selectedStore && availableMenu && cartItems.length > 0 &&
+    !cartItems.some((drink) => isSoldOut(drink.productId));
+
   function selectStore(nextStoreId: string) {
+    reloadMenu();
     setStoreId(nextStoreId);
     setPendingStoreId("");
     setCart({});
@@ -114,7 +124,7 @@ export default function CustomerCheckout({
 
   async function submitOrder() {
     if (submissionInFlight.current) return;
-    if (!pendingCheckout && (!selectedStore || cartItems.length === 0)) return;
+    if (!pendingCheckout && !canSubmit) return;
     if (!accessToken) {
       setCheckoutError("请重新登录");
       return;
@@ -149,7 +159,15 @@ export default function CustomerCheckout({
         signal: AbortSignal.timeout(20_000),
       });
       if (!response.ok) {
-        if (response.status === 400) {
+        if (response.status === 409) {
+          const result = await response.json();
+          if (result.code === "ITEMS_SOLD_OUT") {
+            const names = result.items.map((item: { name: string }) => item.name).join("、");
+            clearPendingCheckout();
+            setCheckoutError(`${names}已售罄，请从购物车移除后重新提交。`);
+            reloadMenu();
+          }
+        } else if (response.status === 400) {
           clearPendingCheckout();
           setCheckoutError("服务器拒绝了这笔订单，请检查门店和饮品后再提交。");
         } else if (response.status === 401 || response.status === 403) {
@@ -205,9 +223,17 @@ export default function CustomerCheckout({
       {selectedStore && (
         <>
           <h4>饮品菜单</h4>
-          {menu.length === 0 ? <p>暂无可售饮品</p> : (
+          {!storeMenu && <p role="status">正在读取饮品菜单…</p>}
+          {storeMenu?.error && (
+            <div>
+              <p role="alert">{storeMenu.error}</p>
+              <button type="button" onClick={reloadMenu}>重新读取菜单</button>
+            </div>
+          )}
+          {availableMenu?.length === 0 && <p>暂无可售饮品</p>}
+          {availableMenu && availableMenu.length > 0 && (
             <ul className="drink-menu">
-              {menu.map((drink) => (
+              {availableMenu.map((drink) => (
                 <li key={drink.productId}>
                   <strong>{drink.name}</strong>
                   <span>{formatPrice(drink.priceCents)}</span>
@@ -233,7 +259,7 @@ export default function CustomerCheckout({
             <ul className="cart-items">
               {cartItems.map((drink) => (
                 <li key={drink.productId}>
-                  <span>{drink.name}</span>
+                  <span>{drink.name}{isSoldOut(drink.productId) && "（已售罄）"}</span>
                   <div className="quantity">
                     <button
                       type="button"
@@ -246,7 +272,7 @@ export default function CustomerCheckout({
                       type="button"
                       aria-label={`增加${drink.name}数量`}
                       onClick={() => changeQuantity(drink.productId, 1)}
-                      disabled={checkoutLocked || drink.quantity >= maxQuantity}
+                      disabled={checkoutLocked || !availableMenu || isSoldOut(drink.productId) || drink.quantity >= maxQuantity}
                     >+</button>
                   </div>
                   <span>{formatPrice(drink.priceCents * drink.quantity)}</span>
@@ -266,7 +292,7 @@ export default function CustomerCheckout({
                 />
               </label>
               <strong>合计 {formatPrice(total)}</strong>
-              <button type="submit" disabled={cartItems.length === 0 || checkoutLocked}>
+              <button type="submit" disabled={!canSubmit || checkoutLocked}>
                 {submitting ? "正在提交…" : "提交订单"}
               </button>
             </div>

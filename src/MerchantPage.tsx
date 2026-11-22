@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import MerchantMenu from "./MerchantMenu";
 import OrderItems from "./OrderItems";
 import { formatOrderTime, type Order } from "./order";
 import { requestOrdersApi } from "./ordersApi";
@@ -59,41 +60,44 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
   const busy = loading || completingOrderId !== null;
 
   return (
-    <section>
-      <h3>待处理订单</h3>
-      <button onClick={() => setRefresh((count) => count + 1)} disabled={busy}>
-        {loading ? "正在读取…" : "刷新待处理订单"}
-      </button>
-      {error && <p role="alert">{error}</p>}
-      {!loading && !error && orders?.length === 0 && <p>暂无待处理订单</p>}
-      {orders && orders.length > 0 && (
-        <table style={{ margin: "12px auto" }}>
-          <thead>
-            <tr>
-              <th scope="col">下单时间</th>
-              <th scope="col">饮品</th>
-              <th scope="col">备注</th>
-              <th scope="col">状态</th>
-              <th scope="col">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.orderId}>
-                <td>{formatOrderTime(order.createdAt)}</td>
-                <td><OrderItems items={order.items} totalAmountCents={order.totalAmountCents} /></td>
-                <td>{order.note || "—"}</td>
-                <td>待制作</td>
-                <td>
-                  <button onClick={() => void markReady(order.orderId)} disabled={busy}>
-                    {completingOrderId === order.orderId ? "正在提交…" : "制作完成"}
-                  </button>
-                </td>
+    <>
+      <MerchantMenu accessToken={accessToken} />
+      <section>
+        <h3>待处理订单</h3>
+        <button onClick={() => setRefresh((count) => count + 1)} disabled={busy}>
+          {loading ? "正在读取…" : "刷新待处理订单"}
+        </button>
+        {error && <p role="alert">{error}</p>}
+        {!loading && !error && orders?.length === 0 && <p>暂无待处理订单</p>}
+        {orders && orders.length > 0 && (
+          <table style={{ margin: "12px auto" }}>
+            <thead>
+              <tr>
+                <th scope="col">下单时间</th>
+                <th scope="col">饮品</th>
+                <th scope="col">备注</th>
+                <th scope="col">状态</th>
+                <th scope="col">操作</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </section>
+            </thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.orderId}>
+                  <td>{formatOrderTime(order.createdAt)}</td>
+                  <td><OrderItems items={order.items} totalAmountCents={order.totalAmountCents} /></td>
+                  <td>{order.note || "—"}</td>
+                  <td>待制作</td>
+                  <td>
+                    <button onClick={() => void markReady(order.orderId)} disabled={busy}>
+                      {completingOrderId === order.orderId ? "正在提交…" : "制作完成"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </>
   );
 }
