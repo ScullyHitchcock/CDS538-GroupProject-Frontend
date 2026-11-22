@@ -54,7 +54,7 @@ export default function App() {
       <button onClick={logout}>退出登录</button>
       <hr />
 
-      {isCustomer && <CustomerPage key={profile.sub} accessToken={auth.user!.access_token} />}
+      {isCustomer && <CustomerPage key={profile.sub} customerId={profile.sub} accessToken={auth.user!.access_token} />}
       {isMerchant && <MerchantPage key={profile.sub} accessToken={auth.user!.access_token} />}
     </div>
   );

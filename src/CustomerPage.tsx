@@ -10,19 +10,39 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 
 type Store = { storeId: string; name: string };
 type Catalog = { stores: Store[]; menu: Drink[]; maxItemQuantity: number };
+type CheckoutRequest = {
+  checkoutId: string;
+  storeId: string;
+  note: string;
+  items: { productId: string; quantity: number }[];
+};
 
-export default function CustomerPage({ accessToken }: { accessToken?: string }) {
+function readPendingCheckout(storageKey: string): CheckoutRequest | null {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? "null");
+    return typeof saved?.checkoutId === "string" && Array.isArray(saved.items) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+export default function CustomerPage({ customerId, accessToken }: { customerId: string; accessToken?: string }) {
+  const checkoutStorageKey = `orders-web:checkout:${customerId}`;
+  const [pendingCheckout, setPendingCheckout] = useState(() => readPendingCheckout(checkoutStorageKey));
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [storeError, setStoreError] = useState("");
-  const [storeId, setStoreId] = useState("");
+  const [storeId, setStoreId] = useState(pendingCheckout?.storeId ?? "");
   const [pendingStoreId, setPendingStoreId] = useState("");
-  const [cart, setCart] = useState<Record<string, number>>({});
-  const [note, setNote] = useState("");
+  const [cart, setCart] = useState<Record<string, number>>(() => Object.fromEntries(
+    (pendingCheckout?.items ?? []).map(({ productId, quantity }) => [productId, quantity]),
+  ));
+  const [note, setNote] = useState(pendingCheckout?.note ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [checkoutError, setCheckoutError] = useState("");
   const [submittedOrder, setSubmittedOrder] = useState<Order | null>(null);
-  const checkoutId = useRef<string | null>(null);
   const [myOrders, setMyOrders] = useState<Order[] | null>(null);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersError, setOrdersError] = useState("");
 
@@ -60,6 +80,12 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
     .map((drink) => ({ ...drink, quantity: cart[drink.productId] ?? 0 }))
     .filter((drink) => drink.quantity > 0);
   const total = cartItems.reduce((sum, drink) => sum + drink.priceCents * drink.quantity, 0);
+  const checkoutLocked = submitting || pendingCheckout !== null;
+  const listedOrderIds = new Set(myOrders?.map(({ orderId }) => orderId));
+  const visibleOrders = [
+    ...recentOrders.filter(({ orderId }) => !listedOrderIds.has(orderId)),
+    ...(myOrders ?? []),
+  ].sort((left, right) => Number(right.createdAt) - Number(left.createdAt));
 
   function selectStore(nextStoreId: string) {
     setStoreId(nextStoreId);
@@ -67,11 +93,9 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
     setCart({});
     setCheckoutError("");
     setSubmittedOrder(null);
-    checkoutId.current = null;
   }
 
   function changeQuantity(productId: string, change: number) {
-    checkoutId.current = null;
     setCheckoutError("");
     setCart((current) => ({
       ...current,
@@ -79,15 +103,35 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
     }));
   }
 
-  async function submitOrder(event: React.SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedStore || cartItems.length === 0 || submitting) return;
+  function clearPendingCheckout() {
+    sessionStorage.removeItem(checkoutStorageKey);
+    setPendingCheckout(null);
+  }
+
+  async function submitOrder() {
+    if (submissionInFlight.current || (!pendingCheckout && (!selectedStore || cartItems.length === 0))) return;
     if (!accessToken) {
       setCheckoutError("请重新登录");
       return;
     }
 
-    checkoutId.current ??= crypto.randomUUID();
+    const request = pendingCheckout ?? {
+      storeId,
+      note,
+      checkoutId: crypto.randomUUID(),
+      items: cartItems.map(({ productId, quantity }) => ({ productId, quantity })),
+    };
+    if (!pendingCheckout) {
+      try {
+        sessionStorage.setItem(checkoutStorageKey, JSON.stringify(request));
+      } catch {
+        setCheckoutError("无法保存本次下单状态，请检查浏览器设置后重试。");
+        return;
+      }
+      setPendingCheckout(request);
+    }
+
+    submissionInFlight.current = true;
     setPendingStoreId("");
     setSubmitting(true);
     setCheckoutError("");
@@ -99,25 +143,30 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({
-          storeId,
-          note,
-          checkoutId: checkoutId.current,
-          items: cartItems.map(({ productId, quantity }) => ({ productId, quantity })),
-        }),
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(20_000),
       });
       if (!response.ok) {
-        throw new Error(`提交订单失败（HTTP ${response.status}）`);
+        if (response.status === 400) {
+          clearPendingCheckout();
+          setCheckoutError("服务器拒绝了这笔订单，请检查门店和饮品后再提交。");
+        } else if (response.status === 401 || response.status === 403) {
+          if (!pendingCheckout) clearPendingCheckout();
+          setCheckoutError("请重新登录后继续。");
+        }
+        return;
       }
       const created: Order = await response.json();
+      if (typeof created.orderId !== "string" || !created.orderId) return;
+      clearPendingCheckout();
       setSubmittedOrder(created);
-      setMyOrders((orders) => orders && [created, ...orders.filter((order) => order.orderId !== created.orderId)]);
+      setRecentOrders((orders) => [created, ...orders.filter(({ orderId }) => orderId !== created.orderId)]);
       setCart({});
       setNote("");
-      checkoutId.current = null;
-    } catch (error) {
-      setCheckoutError(error instanceof Error ? error.message : String(error));
+    } catch {
+      // 没有收到明确结果，保留原请求供用户重试。
     } finally {
+      submissionInFlight.current = false;
       setSubmitting(false);
     }
   }
@@ -137,7 +186,9 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
         throw new Error(`读取订单列表失败（HTTP ${response.status}）`);
       }
       const { orders }: { orders: Order[] } = await response.json();
+      const returnedOrderIds = new Set(orders.map(({ orderId }) => orderId));
       setMyOrders(orders);
+      setRecentOrders((recent) => recent.filter(({ orderId }) => !returnedOrderIds.has(orderId)));
     } catch (error) {
       setOrdersError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -149,7 +200,7 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
     <>
       <section className="checkout" aria-labelledby="checkout-heading">
         <h3 id="checkout-heading">顾客下单</h3>
-        <fieldset disabled={submitting}>
+        <fieldset disabled={checkoutLocked}>
           <legend>选择门店</legend>
           {storeError && <p role="alert">{storeError}</p>}
           {!catalog && !storeError && <p>正在加载门店…</p>}
@@ -191,7 +242,7 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
                       type="button"
                       aria-label={`加入购物车：${drink.name}`}
                       onClick={() => changeQuantity(drink.productId, 1)}
-                      disabled={submitting || (cart[drink.productId] ?? 0) >= maxQuantity}
+                      disabled={checkoutLocked || (cart[drink.productId] ?? 0) >= maxQuantity}
                     >
                       加入购物车
                     </button>
@@ -201,7 +252,10 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
             )}
 
             <h4>购物车</h4>
-            <form onSubmit={submitOrder}>
+            <form onSubmit={(event) => {
+              event.preventDefault();
+              void submitOrder();
+            }}>
               {cartItems.length === 0 && <p>购物车是空的</p>}
               <ul className="cart-items">
                 {cartItems.map((drink) => (
@@ -212,14 +266,14 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
                         type="button"
                         aria-label={`减少${drink.name}数量`}
                         onClick={() => changeQuantity(drink.productId, -1)}
-                        disabled={submitting}
+                        disabled={checkoutLocked}
                       >−</button>
                       <span aria-label={`${drink.name}数量`}>{drink.quantity}</span>
                       <button
                         type="button"
                         aria-label={`增加${drink.name}数量`}
                         onClick={() => changeQuantity(drink.productId, 1)}
-                        disabled={submitting || drink.quantity >= maxQuantity}
+                        disabled={checkoutLocked || drink.quantity >= maxQuantity}
                       >+</button>
                     </div>
                     <span>{formatPrice(drink.priceCents * drink.quantity)}</span>
@@ -231,28 +285,34 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
                   订单备注（可选）
                   <input
                     value={note}
-                    disabled={submitting}
+                    disabled={checkoutLocked}
                     onChange={(event) => {
                       setNote(event.target.value);
                       setCheckoutError("");
-                      checkoutId.current = null;
                     }}
                   />
                 </label>
                 <strong>合计 {formatPrice(total)}</strong>
-                <button type="submit" disabled={cartItems.length === 0 || submitting}>
+                <button type="submit" disabled={cartItems.length === 0 || checkoutLocked}>
                   {submitting ? "正在提交…" : "提交订单"}
                 </button>
               </div>
-              {checkoutError && <p role="alert">{checkoutError}</p>}
             </form>
-            {submittedOrder && (
-              <div className="order-confirmation" role="status">
-                <p>订单已提交 · {ORDER_STATUS_LABELS[submittedOrder.status ?? ""] ?? "处理中"}</p>
-                <OrderItems items={submittedOrder.items} totalAmountCents={submittedOrder.totalAmountCents} />
-              </div>
-            )}
           </>
+        )}
+        {submitting && !selectedStore && <p role="status">正在确认订单…</p>}
+        {pendingCheckout && !submitting && (
+          <div className="order-confirmation">
+            <p role="status">这笔订单可能已提交。请先重试确认，购物车暂时无法修改。</p>
+            <button type="button" onClick={() => void submitOrder()}>重试原订单</button>
+          </div>
+        )}
+        {checkoutError && <p role="alert">{checkoutError}</p>}
+        {submittedOrder && (
+          <div className="order-confirmation" role="status">
+            <p>订单已提交 · {ORDER_STATUS_LABELS[submittedOrder.status ?? ""] ?? "处理中"}</p>
+            <OrderItems items={submittedOrder.items} totalAmountCents={submittedOrder.totalAmountCents} />
+          </div>
         )}
       </section>
 
@@ -262,8 +322,8 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
           {loadingOrders ? "正在读取…" : myOrders ? "刷新我的订单" : "查看我的订单"}
         </button>
         {ordersError && <p role="alert">{ordersError}</p>}
-        {myOrders?.length === 0 && <p>暂无订单</p>}
-        {myOrders && myOrders.length > 0 && (
+        {myOrders && visibleOrders.length === 0 && <p>暂无订单</p>}
+        {visibleOrders.length > 0 && (
           <table style={{ margin: "12px auto" }}>
             <thead>
               <tr>
@@ -274,7 +334,7 @@ export default function CustomerPage({ accessToken }: { accessToken?: string }) 
               </tr>
             </thead>
             <tbody>
-              {myOrders.map((order) => (
+              {visibleOrders.map((order) => (
                 <tr key={order.orderId}>
                   <td>{new Date(Number(order.createdAt) * 1000).toLocaleString("zh-CN")}</td>
                   <td><OrderItems items={order.items} totalAmountCents={order.totalAmountCents} /></td>
