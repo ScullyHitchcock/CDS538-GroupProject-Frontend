@@ -190,14 +190,14 @@ export default function CustomerCheckout({
 
   return (
     <section className="checkout" id="customer-menu" tabIndex={-1} aria-labelledby="checkout-heading">
-      <header className="ordering-intro">
+      <header className="page-banner">
         <h1 id="checkout-heading">顾客下单</h1>
       </header>
 
       <div className="store-panel">
         <fieldset disabled={checkoutLocked}>
           <legend>选择门店</legend>
-          {storeError && <p role="alert" className="checkout-alert">{storeError}</p>}
+          {storeError && <p role="alert" className="app-alert">{storeError}</p>}
           {!catalog && !storeError && <p role="status">正在加载门店…</p>}
           {catalog?.stores.length === 0 && <p>暂无可选门店</p>}
           <div className="store-options">
@@ -219,10 +219,10 @@ export default function CustomerCheckout({
           <div className="store-switch" role="group" aria-label="确认切换门店">
             <p>切换到 {pendingStore.name} 会清空购物车。</p>
             <div>
-              <button className="menu-button menu-button--outline" type="button" onClick={() => setPendingStoreId("")}>
+              <button className="app-button app-button--outline" type="button" onClick={() => setPendingStoreId("")}>
                 保留当前门店
               </button>
-              <button className="menu-button" type="button" onClick={() => selectStore(pendingStore.storeId)}>
+              <button className="app-button" type="button" onClick={() => selectStore(pendingStore.storeId)}>
                 确认切换
               </button>
             </div>
@@ -232,10 +232,10 @@ export default function CustomerCheckout({
 
       <div className="ordering-grid">
         <div className="ordering-menu">
-          <div className="menu-section-heading">
+          <div className="section-heading">
             <h2>饮品菜单</h2>
             {menu && (
-              <button className="menu-button menu-button--outline" type="button" onClick={reloadMenu} disabled={checkoutLocked}>
+              <button className="app-button app-button--outline" type="button" onClick={reloadMenu} disabled={checkoutLocked}>
                 刷新菜单
               </button>
             )}
@@ -244,8 +244,8 @@ export default function CustomerCheckout({
           {selectedStore && !storeMenu && <p className="menu-message" role="status">正在读取饮品菜单…</p>}
           {selectedStore && storeMenu?.error && (
             <div className="menu-message">
-              <p role="alert" className="checkout-alert">{storeMenu.error}</p>
-              <button className="menu-button menu-button--outline" type="button" onClick={reloadMenu}>
+              <p role="alert" className="app-alert">{storeMenu.error}</p>
+              <button className="app-button app-button--outline" type="button" onClick={reloadMenu}>
                 重新读取菜单
               </button>
             </div>
@@ -268,10 +268,10 @@ export default function CustomerCheckout({
           {pendingCheckout && !submitting && (
             <div className="order-confirmation">
               <p role="status">这笔订单可能已提交。请先重试确认，购物车暂时无法修改。</p>
-              <button className="menu-button" type="button" onClick={() => void submitOrder()}>重试原订单</button>
+              <button className="app-button" type="button" onClick={() => void submitOrder()}>重试原订单</button>
             </div>
           )}
-          {checkoutError && <p role="alert" className="checkout-alert">{checkoutError}</p>}
+          {checkoutError && <p role="alert" className="app-alert">{checkoutError}</p>}
 
           {selectedStore ? (
             <form onSubmit={(event) => {
@@ -292,13 +292,13 @@ export default function CustomerCheckout({
                   />
                 </label>
                 <strong className="cart-total">合计 {formatPrice(total)}</strong>
-                <button className="menu-button" type="submit" disabled={!canSubmit || checkoutLocked}>
+                <button className="app-button" type="submit" disabled={!canSubmit || checkoutLocked}>
                   {submitting ? "正在提交…" : "提交订单"}
                 </button>
               </div>
             </form>
           ) : (
-            <p className="cart-empty">选择门店后即可添加商品。</p>
+            <p className="muted-message">选择门店后即可添加商品。</p>
           )}
 
           {submittedOrder && (

@@ -8,7 +8,7 @@ type CartItemsProps = {
 };
 
 export default function CartItems({ items, locked, onQuantityChange }: CartItemsProps) {
-  if (items.length === 0) return <p className="cart-empty">购物车是空的</p>;
+  if (items.length === 0) return <p className="muted-message">购物车是空的</p>;
 
   return (
     <ul className="cart-items">

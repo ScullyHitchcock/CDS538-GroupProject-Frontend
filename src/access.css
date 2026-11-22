@@ -1,0 +1,83 @@
+.sign-in-panel,
+.access-notice {
+  margin: clamp(18px, 5vw, 64px) auto 0;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 6px);
+  background: var(--surface);
+}
+
+.sign-in-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  max-width: 1080px;
+  overflow: hidden;
+}
+
+.sign-in-intro,
+.access-notice {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 18px;
+  padding: clamp(24px, 5vw, 60px);
+}
+
+.sign-in-intro h1 {
+  color: var(--deep-green);
+  font-size: clamp(32px, 4vw, 52px);
+  letter-spacing: 0.01em;
+}
+
+.sign-in-intro p,
+.access-notice p:not(.app-alert) {
+  color: var(--muted);
+}
+
+.sign-in-intro .app-button {
+  min-width: 128px;
+}
+
+.sign-in-photos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-height: 365px;
+  padding: 8px;
+  background: var(--paper);
+}
+
+.sign-in-photos .product-image {
+  aspect-ratio: auto;
+  min-height: 0;
+  border-radius: 8px;
+}
+
+.sign-in-photos .product-image:first-child {
+  grid-row: span 2;
+}
+
+.access-notice {
+  max-width: 520px;
+  padding: clamp(22px, 4vw, 36px);
+}
+
+.access-notice h1 {
+  font-size: clamp(27px, 3vw, 34px);
+}
+
+.access-notice p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 680px) {
+  .sign-in-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .sign-in-photos {
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+}

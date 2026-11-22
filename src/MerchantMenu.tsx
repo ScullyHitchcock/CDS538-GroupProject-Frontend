@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { type StoreProduct } from "./order";
+import ProductImage from "./ProductImage";
 import { requestOrdersApi } from "./ordersApi";
 
-export default function MerchantMenu({ accessToken }: { accessToken: string }) {
-  const [menu, setMenu] = useState<StoreProduct[] | null>(null);
+type MerchantCatalog = { menu: StoreProduct[]; toppings: StoreProduct[] };
+type MerchantMenuProps = { accessToken: string; headingLevel: "h2" | "h3" };
+
+export default function MerchantMenu({ accessToken, headingLevel: Heading }: MerchantMenuProps) {
+  const [catalog, setCatalog] = useState<MerchantCatalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -22,10 +26,10 @@ export default function MerchantMenu({ accessToken }: { accessToken: string }) {
         if (!response.ok) throw new Error(`读取商品供应状态失败（HTTP ${response.status}）`);
 
         const { menu, toppings = [] }: { menu: StoreProduct[]; toppings?: StoreProduct[] } = await response.json();
-        if (!controller.signal.aborted) setMenu([...menu, ...toppings]);
+        if (!controller.signal.aborted) setCatalog({ menu, toppings });
       } catch (error) {
         if (!controller.signal.aborted) {
-          setMenu(null);
+          setCatalog(null);
           setError(error instanceof Error ? error.message : String(error));
         }
       } finally {
@@ -50,7 +54,9 @@ export default function MerchantMenu({ accessToken }: { accessToken: string }) {
       if (!response.ok) throw new Error(`更新供应状态失败（HTTP ${response.status}）`);
 
       const updated: StoreProduct = await response.json();
-      setMenu((current) => current?.map((item) => item.productId === updated.productId ? updated : item) ?? null);
+      const updateProduct = (items: StoreProduct[]) =>
+        items.map((item) => item.productId === updated.productId ? updated : item);
+      setCatalog((current) => current && { menu: updateProduct(current.menu), toppings: updateProduct(current.toppings) });
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -59,32 +65,58 @@ export default function MerchantMenu({ accessToken }: { accessToken: string }) {
   }
 
   const busy = loading || savingProductId !== "";
+  const groups = [
+    { name: "饮品", products: catalog?.menu ?? [] },
+    { name: "小料", products: catalog?.toppings ?? [] },
+  ];
+  const GroupHeading = Heading === "h2" ? "h3" : "h4";
 
   return (
-    <section aria-labelledby="merchant-menu-heading">
-      <h3 id="merchant-menu-heading">饮品与小料供应</h3>
-      <button type="button" onClick={() => setRefresh((count) => count + 1)} disabled={busy}>
-        {loading ? "正在读取…" : "刷新供应状态"}
-      </button>
-      {error && <p role="alert">{error}</p>}
-      {menu && (
-        <ul className="drink-menu">
-          {menu.map((product) => (
-            <li key={product.productId}>
-              <strong>{product.name}</strong>
-              <span>{product.soldOut ? "已售罄" : "供应中"}</span>
-              <button
-                type="button"
-                aria-label={`${product.soldOut ? "恢复供应" : "设置售罄"}：${product.name}`}
-                onClick={() => void updateAvailability(product)}
-                disabled={busy}
-              >
-                {savingProductId === product.productId ? "正在保存…" : product.soldOut ? "恢复供应" : "设置售罄"}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <section className="merchant-panel" id="merchant-menu" tabIndex={-1} aria-labelledby="merchant-menu-heading">
+      <div className="section-heading">
+        <Heading id="merchant-menu-heading">饮品与小料供应</Heading>
+        <button
+          className="app-button app-button--outline"
+          type="button"
+          onClick={() => setRefresh((count) => count + 1)}
+          disabled={busy}
+        >
+          {loading ? "正在读取…" : "刷新供应状态"}
+        </button>
+      </div>
+      {error && <p className="app-alert" role="alert">{error}</p>}
+      {catalog && groups.every((group) => group.products.length === 0) && <p className="merchant-empty">暂无商品</p>}
+      {groups.filter((group) => group.products.length > 0).map(({ name, products }) => (
+        <div className="supply-group" key={name}>
+          <GroupHeading>{name}</GroupHeading>
+          <ul className="supply-list">
+            {products.map((product) => {
+              const action = product.soldOut ? "恢复供应" : "设置售罄";
+
+              return (
+                <li key={product.productId}>
+                  <ProductImage productId={product.productId} />
+                  <div className="supply-item">
+                    <strong>{product.name}</strong>
+                    <span className={product.soldOut ? "supply-status is-sold-out" : "supply-status"}>
+                      {product.soldOut ? "已售罄" : "供应中"}
+                    </span>
+                  </div>
+                  <button
+                    className="app-button app-button--outline"
+                    type="button"
+                    aria-label={`${action}：${product.name}`}
+                    onClick={() => void updateAvailability(product)}
+                    disabled={busy}
+                  >
+                    {savingProductId === product.productId ? "正在保存…" : action}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </section>
   );
 }

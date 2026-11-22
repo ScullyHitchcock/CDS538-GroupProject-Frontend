@@ -1,6 +1,19 @@
 import { useAuth } from "react-oidc-context";
+import AccessPage from "./AccessPage";
+import AppShell, { type PageLink } from "./AppShell";
 import CustomerPage from "./CustomerPage";
 import MerchantPage from "./MerchantPage";
+
+const customerLinks: PageLink[] = [
+  { href: "#customer-menu", label: "菜单" },
+  { href: "#customer-cart", label: "购物车" },
+  { href: "#customer-orders", label: "我的订单" },
+];
+
+const merchantLinks: PageLink[] = [
+  { href: "#merchant-orders", label: "待处理订单" },
+  { href: "#merchant-menu", label: "供应状态" },
+];
 
 export default function App() {
   const auth = useAuth();
@@ -18,26 +31,10 @@ export default function App() {
       `https://us-east-1xatvqnru6.auth.us-east-1.amazoncognito.com/logout?${params}`;
   }
 
-  if (auth.isLoading) {
-    return <p>正在处理登录……</p>;
-  }
-
-  if (auth.error) {
-    return (
-      <div style={{ padding: 24 }}>
-        <p>登录失败：{auth.error.message}</p>
-        <a href="/">返回首页重试</a>
-      </div>
-    );
-  }
-
+  if (auth.isLoading) return <AppShell><AccessPage state="loading" /></AppShell>;
+  if (auth.error) return <AppShell><AccessPage state="error" message={auth.error.message} /></AppShell>;
   if (!auth.isAuthenticated) {
-    return (
-      <div style={{ padding: 24 }}>
-        <h2>点单系统</h2>
-        <button onClick={() => auth.signinRedirect()}>登录</button>
-      </div>
-    );
+    return <AppShell><AccessPage state="sign-in" onSignIn={() => void auth.signinRedirect()} /></AppShell>;
   }
 
   const { profile, access_token: accessToken } = auth.user!;
@@ -45,26 +42,16 @@ export default function App() {
   const groups = profile["cognito:groups"];
   const isCustomer = Array.isArray(groups) && groups.includes("customers");
   const isMerchant = Array.isArray(groups) && groups.includes("merchants");
-
-  const merchantPage = isMerchant && <MerchantPage key={profile.sub} accessToken={accessToken} />;
-  if (isCustomer) {
-    return (
-      <>
-        <CustomerPage key={profile.sub} customerId={profile.sub} accessToken={accessToken} username={username} onLogout={logout} />
-        {merchantPage}
-      </>
-    );
-  }
+  const navigation = [
+    ...(isCustomer ? customerLinks : []),
+    ...(isMerchant ? merchantLinks : []),
+  ];
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>点单系统</h2>
-      <p>当前用户：{username}</p>
-      <p>所属组：{Array.isArray(groups) ? groups.join(", ") : "尚未分组"}</p>
-      <button onClick={logout}>退出登录</button>
-      <hr />
-
-      {merchantPage}
-    </div>
+    <AppShell navigation={navigation} account={{ username: isMerchant ? undefined : username, onLogout: logout }}>
+      {isCustomer && <CustomerPage key={`customer:${profile.sub}`} customerId={profile.sub} accessToken={accessToken} />}
+      {isMerchant && <MerchantPage key={`merchant:${profile.sub}`} accessToken={accessToken} storeName={username} secondary={isCustomer} />}
+      {!isCustomer && !isMerchant && <AccessPage state="unassigned" username={username} />}
+    </AppShell>
   );
 }

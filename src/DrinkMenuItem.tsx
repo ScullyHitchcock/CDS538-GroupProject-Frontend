@@ -64,7 +64,7 @@ export default function DrinkMenuItem({ drink, toppings, locked, atQuantityLimit
         </fieldset>
       )}
       <button
-        className="menu-button"
+        className="app-button"
         type="button"
         aria-label={`加入购物车：${drink.name}`}
         onClick={() => onAdd(options, selectedToppings.map((topping) => topping.productId))}

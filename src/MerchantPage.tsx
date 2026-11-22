@@ -3,8 +3,11 @@ import MerchantMenu from "./MerchantMenu";
 import OrderItems from "./OrderItems";
 import { formatOrderTime, type Order } from "./order";
 import { requestOrdersApi } from "./ordersApi";
+import "./merchant.css";
 
-export default function MerchantPage({ accessToken }: { accessToken: string }) {
+type MerchantPageProps = { accessToken: string; storeName: string; secondary?: boolean };
+
+export default function MerchantPage({ accessToken, storeName, secondary = false }: MerchantPageProps) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -55,49 +58,56 @@ export default function MerchantPage({ accessToken }: { accessToken: string }) {
     }
   }
 
-  if (!accessToken) return <p role="alert">请重新登录</p>;
+  if (!accessToken) return <p className="app-alert" role="alert">请重新登录</p>;
 
   const busy = loading || completingOrderId !== null;
 
+  const Title = secondary ? "h2" : "h1";
+  const SectionTitle = secondary ? "h3" : "h2";
+
   return (
-    <>
-      <MerchantMenu accessToken={accessToken} />
-      <section>
-        <h3>待处理订单</h3>
-        <button onClick={() => setRefresh((count) => count + 1)} disabled={busy}>
-          {loading ? "正在读取…" : "刷新待处理订单"}
-        </button>
-        {error && <p role="alert">{error}</p>}
-        {!loading && !error && orders?.length === 0 && <p>暂无待处理订单</p>}
-        {orders && orders.length > 0 && (
-          <table style={{ margin: "12px auto" }}>
-            <thead>
-              <tr>
-                <th scope="col">下单时间</th>
-                <th scope="col">饮品</th>
-                <th scope="col">备注</th>
-                <th scope="col">状态</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
+    <section className="merchant-page" aria-labelledby="merchant-heading">
+      <header className="page-banner">
+        <Title id="merchant-heading">商家工作台</Title>
+        <p className="merchant-store-name">门店 {storeName}</p>
+      </header>
+
+      <div className="merchant-dashboard">
+        <section className="merchant-panel" id="merchant-orders" tabIndex={-1} aria-labelledby="merchant-orders-heading">
+          <div className="section-heading">
+            <SectionTitle id="merchant-orders-heading">待处理订单</SectionTitle>
+            <button
+              className="app-button app-button--outline"
+              type="button"
+              onClick={() => setRefresh((count) => count + 1)}
+              disabled={busy}
+            >
+              {loading ? "正在读取…" : "刷新待处理订单"}
+            </button>
+          </div>
+          {error && <p className="app-alert" role="alert">{error}</p>}
+          {!loading && !error && orders?.length === 0 && <p className="merchant-empty">暂无待处理订单</p>}
+          {orders && orders.length > 0 && (
+            <ul className="merchant-orders-list">
               {orders.map((order) => (
-                <tr key={order.orderId}>
-                  <td>{formatOrderTime(order.createdAt)}</td>
-                  <td><OrderItems items={order.items} totalAmountCents={order.totalAmountCents} /></td>
-                  <td>{order.note || "—"}</td>
-                  <td>待制作</td>
-                  <td>
-                    <button onClick={() => void markReady(order.orderId)} disabled={busy}>
-                      {completingOrderId === order.orderId ? "正在提交…" : "制作完成"}
-                    </button>
-                  </td>
-                </tr>
+                <li className="merchant-order" key={order.orderId}>
+                  <div className="merchant-order-details">
+                    <p className="merchant-order-time">下单时间 {formatOrderTime(order.createdAt)}</p>
+                    {order.items?.length ? (
+                      <OrderItems items={order.items} totalAmountCents={order.totalAmountCents} />
+                    ) : null}
+                    {order.note && <p className="merchant-order-note"><strong>备注</strong> {order.note}</p>}
+                  </div>
+                  <button className="app-button" type="button" onClick={() => void markReady(order.orderId)} disabled={busy}>
+                    {completingOrderId === order.orderId ? "正在提交…" : "制作完成"}
+                  </button>
+                </li>
               ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-    </>
+            </ul>
+          )}
+        </section>
+        <MerchantMenu accessToken={accessToken} headingLevel={SectionTitle} />
+      </div>
+    </section>
   );
 }

@@ -39,7 +39,7 @@ export default function CustomerMenu({ drinks, toppings, locked, atQuantityLimit
             {toppings.map((topping) => (
               <ProductCard key={topping.productId} product={topping} priceCents={topping.priceCents} perPortion>
                 <button
-                  className="menu-button"
+                  className="app-button"
                   type="button"
                   aria-label={`单点${topping.name}`}
                   onClick={() => onAdd({ productId: topping.productId })}

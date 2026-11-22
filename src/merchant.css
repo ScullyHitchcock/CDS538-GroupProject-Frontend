@@ -1,0 +1,135 @@
+.customer-page + .merchant-page {
+  margin-block-start: 32px;
+}
+
+.merchant-page .page-banner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px 18px;
+}
+
+.merchant-store-name {
+  color: #e2ebdf;
+  overflow-wrap: anywhere;
+}
+
+.merchant-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(315px, 380px);
+  align-items: start;
+  gap: clamp(16px, 2.5vw, 32px);
+}
+
+.merchant-panel {
+  min-width: 0;
+  padding: clamp(14px, 2vw, 20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.merchant-panel .app-alert {
+  margin-block-end: 12px;
+}
+
+.merchant-empty {
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  background: var(--paper);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.merchant-orders-list,
+.supply-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.merchant-orders-list {
+  gap: 12px;
+}
+
+.merchant-order {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px 20px;
+  padding: clamp(12px, 1.7vw, 17px);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.merchant-order-details {
+  display: grid;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.merchant-order-time,
+.merchant-order-note {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.merchant-order .app-button,
+.supply-list .app-button {
+  white-space: nowrap;
+}
+
+.supply-group + .supply-group {
+  margin-block-start: 16px;
+}
+
+.supply-group :is(h3, h4) {
+  font-size: 15px;
+}
+
+.supply-list li {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.supply-list li:last-child {
+  border-bottom: 0;
+}
+
+.supply-list .product-image {
+  border-radius: 6px;
+}
+
+.supply-item {
+  display: grid;
+  overflow-wrap: anywhere;
+}
+
+.supply-status {
+  color: var(--green);
+  font-size: 13px;
+}
+
+.supply-status.is-sold-out {
+  color: #873a2e;
+}
+
+@media (max-width: 790px) {
+  .merchant-dashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .merchant-order {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

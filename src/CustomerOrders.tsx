@@ -20,14 +20,14 @@ export default function CustomerOrders({
 }: CustomerOrdersProps) {
   return (
     <section className="customer-orders" id="customer-orders" tabIndex={-1} aria-labelledby="orders-heading">
-      <div className="menu-section-heading">
+      <div className="section-heading">
         <h2 id="orders-heading">我的订单</h2>
-        <button className="menu-button menu-button--outline" type="button" onClick={onRefresh} disabled={loading || submitting}>
+        <button className="app-button app-button--outline" type="button" onClick={onRefresh} disabled={loading || submitting}>
           {loading ? "正在读取…" : hasLoaded ? "刷新我的订单" : "查看我的订单"}
         </button>
       </div>
-      {error && <p role="alert" className="checkout-alert">{error}</p>}
-      {hasLoaded && orders.length === 0 && <p className="cart-empty">暂无订单</p>}
+      {error && <p role="alert" className="app-alert">{error}</p>}
+      {hasLoaded && orders.length === 0 && <p className="muted-message">暂无订单</p>}
       {orders.length > 0 && (
         <div className="orders-table">
           <table>
