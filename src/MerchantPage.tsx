@@ -13,6 +13,15 @@ export default function MerchantPage({ accessToken, storeName, secondary = false
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
   const [completingOrderId, setCompletingOrderId] = useState<string | null>(null);
+  const busy = loading || completingOrderId !== null;
+
+  useEffect(() => {
+    if (!accessToken || busy) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") setRefresh((count) => count + 1);
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [accessToken, busy]);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -22,7 +31,9 @@ export default function MerchantPage({ accessToken, storeName, secondary = false
       setLoading(true);
       setError("");
       try {
-        const response = await requestOrdersApi("/merchant/orders", accessToken, { signal: controller.signal });
+        const response = await requestOrdersApi("/merchant/orders", accessToken, {
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20_000)]),
+        });
         if (!response.ok) {
           throw new Error(`读取待处理订单失败（HTTP ${response.status}）`);
         }
@@ -59,8 +70,6 @@ export default function MerchantPage({ accessToken, storeName, secondary = false
   }
 
   if (!accessToken) return <p className="app-alert" role="alert">请重新登录</p>;
-
-  const busy = loading || completingOrderId !== null;
 
   const Title = secondary ? "h2" : "h1";
   const SectionTitle = secondary ? "h3" : "h2";
